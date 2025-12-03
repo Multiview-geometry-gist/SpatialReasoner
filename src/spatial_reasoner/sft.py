@@ -15,6 +15,7 @@
 import logging
 import os
 import sys
+import random
 from PIL import Image
 import torch
 import datasets
@@ -118,8 +119,21 @@ def main(script_args, training_args, model_args):
                     question = f"Question: {question_text}\nOptions:\n{options_text}\nPlease select the correct answer from the options above."
                 else:
                     question = example["question"]
-                
-                image_path = os.path.join(training_args.data_dir, example["image_filename"])
+
+                # Multi-view image selection
+                if training_args.multiview_enabled and "view_images" in example and example["view_images"]:
+                    view_images = example["view_images"]
+                    if training_args.multiview_selection == "random":
+                        view_key = random.choice(list(view_images.keys()))
+                    elif training_args.multiview_selection == "original_only":
+                        view_key = "0" if "0" in view_images else list(view_images.keys())[0]
+                    else:
+                        view_key = random.choice(list(view_images.keys()))
+                    image_filename = view_images[view_key]
+                    image_path = os.path.join(training_args.multiview_data_dir, "images", image_filename)
+                else:
+                    image_path = os.path.join(training_args.data_dir, example["image_filename"])
+
                 image = Image.open(image_path).convert("RGB")
                 converted_sample = [
                         {"role": "user", "content": [

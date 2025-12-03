@@ -14,9 +14,24 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 
 import trl
+
+
+@dataclass
+class MultiViewConfig:
+    """Configuration for multi-view training."""
+    enabled: bool = False
+    num_views: int = 3  # [-5, 0, +5 degrees]
+    view_selection: str = "random"  # "random", "all", "original_only"
+
+
+@dataclass
+class QuaternionConfig:
+    """Configuration for quaternion-based training."""
+    enabled: bool = False
+    geodesic_loss_weight: float = 0.1
 
 
 # TODO: add the shared options with a mixin to reduce code duplication
@@ -63,6 +78,15 @@ class GRPOConfig(trl.GRPOConfig):
     stop_steps: Optional[int] = field(
         default=10000,
         metadata={"help": "Number of steps for the early stop."},
+    )
+    # Quaternion settings
+    quaternion_enabled: bool = field(
+        default=False,
+        metadata={"help": "Enable quaternion-based rotation rewards."},
+    )
+    rotation_reward_weight: float = field(
+        default=1.0,
+        metadata={"help": "Weight for rotation accuracy reward."},
     )
 
 
@@ -119,4 +143,21 @@ class SFTConfig(trl.SFTConfig):
     stop_steps: Optional[int] = field(
         default=7000,
         metadata={"help": "Number of steps for the early stop."},
+    )
+    # Multi-view settings
+    multiview_enabled: bool = field(
+        default=False,
+        metadata={"help": "Enable multi-view training data."},
+    )
+    multiview_data_dir: str = field(
+        default="./data/multiview",
+        metadata={"help": "Directory containing multi-view data."},
+    )
+    multiview_selection: str = field(
+        default="random",
+        metadata={"help": "View selection strategy: random, all, original_only."},
+    )
+    rotation_query_weight: float = field(
+        default=1.5,
+        metadata={"help": "Weight multiplier for rotation-based queries."},
     )

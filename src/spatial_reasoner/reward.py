@@ -4,6 +4,14 @@ from datetime import datetime
 import string
 import copy as cp
 import re
+from collections import Counter
+from typing import List, Optional
+import numpy as np
+
+
+def group_key(group):
+    """Create hashable key from pattern group."""
+    return tuple(id(p) for p in group)
 
 
 def can_infer_option(answer, choices):
@@ -226,3 +234,86 @@ def process_reward(completions, category, **kwargs):
         reward = (TP + TN) / denom if denom > 0 else 1.0
         rewards.append(reward)
     return rewards
+
+
+# Rotation-specific reward patterns
+ROTATION_SUBTYPES = {
+    "orientation_facing_toward",
+    "multi_object_same_direction",
+    "orientation_in_front_of",
+    "orientation_on_the_left",
+    "orientation_viewpoint",
+    "multi_object_facing",
+    "multi_object_parallel",
+}
+
+
+def rotation_accuracy_reward(
+    completions,
+    answer: Optional[List[str]] = None,
+    query_subtype: Optional[List[str]] = None,
+    quaternion_gt: Optional[List] = None,
+    **kwargs
+) -> List[float]:
+    """
+    Reward function for rotation-based queries.
+
+    For binary queries (facing toward, same direction):
+    - Standard accuracy reward based on Yes/No matching
+
+    For quaternion prediction (if applicable):
+    - Based on geodesic distance
+    """
+    contents = [completion[0]["content"] for completion in completions]
+    rewards = []
+
+    for i, content in enumerate(contents):
+        # Extract answer from <answer> tags
+        match = re.search(r'<answer>(.*?)</answer>', content, re.DOTALL)
+        extracted = match.group(1).strip().lower() if match else content.strip().lower()
+
+        # Get subtype if available
+        subtype = query_subtype[i] if query_subtype else None
+
+        # For rotation queries, check binary accuracy
+        if subtype and subtype in ROTATION_SUBTYPES:
+            gt = answer[i].lower() if answer and answer[i] else None
+            if gt:
+                pred_yes = extracted in ["yes", "a", "true"]
+                gt_yes = gt in ["yes", "a", "true"]
+                rewards.append(1.0 if pred_yes == gt_yes else 0.0)
+            else:
+                rewards.append(0.0)
+
+        # For quaternion prediction (advanced use case)
+        elif quaternion_gt and quaternion_gt[i] is not None:
+            from .quaternion import parse_quaternion_from_text, geodesic_distance_np
+            q_pred = parse_quaternion_from_text(content)
+            if q_pred is not None:
+                q_gt = np.array(quaternion_gt[i])
+                geo_dist = geodesic_distance_np(q_pred, q_gt)
+                # Convert to reward: 0-1, higher is better
+                reward = max(0.0, 1.0 - geo_dist / np.pi)
+                rewards.append(reward)
+            else:
+                rewards.append(0.0)
+        else:
+            # Default: use standard accuracy
+            if answer and answer[i]:
+                gt = answer[i].lower()
+                is_correct = extracted == gt or extracted.startswith(gt)
+                rewards.append(1.0 if is_correct else 0.0)
+            else:
+                rewards.append(0.0)
+
+    return rewards
+
+
+# Registry for reward functions
+REWARD_FUNCS = {
+    "accuracy": accuracy_reward,
+    "format": format_reward,
+    "reasoning_steps": reasoning_steps_reward,
+    "process": process_reward,
+    "rotation": rotation_accuracy_reward,
+}
