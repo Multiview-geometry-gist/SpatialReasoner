@@ -4,6 +4,12 @@ from datetime import datetime
 import string
 import copy as cp
 import re
+from collections import Counter
+
+
+def group_key(group):
+    """Convert pattern group to hashable key for Counter."""
+    return tuple(sorted(id(p) for p in group))
 
 
 def can_infer_option(answer, choices):
@@ -151,6 +157,13 @@ phrases_dict = {
 
     "front": re.compile(r"front direction of .*? \(-?\d+\.\d+, -?\d+\.\d+, -?\d+\.\d+\)", flags=re.IGNORECASE),
     "left": re.compile(r"left direction of .*? \(-?\d+\.\d+, -?\d+\.\d+, -?\d+\.\d+\)", flags=re.IGNORECASE),
+
+    # Rotation-specific patterns
+    "quaternion": re.compile(r"quaternion.*?\(?\s*-?\d+\.?\d*\s*,\s*-?\d+\.?\d*\s*,\s*-?\d+\.?\d*\s*,\s*-?\d+\.?\d*\s*\)?", flags=re.IGNORECASE),
+    "rotation_angle": re.compile(r"rotation angle.*?-?\d+\.?\d*\s*degrees?", flags=re.IGNORECASE),
+    "euler_angles": re.compile(r"euler angles?.*?\(?\s*-?\d+\.?\d*\s*,\s*-?\d+\.?\d*\s*,\s*-?\d+\.?\d*\s*\)?", flags=re.IGNORECASE),
+    "facing_toward": re.compile(r"facing toward|facing towards|oriented toward", flags=re.IGNORECASE),
+    "same_direction": re.compile(r"same direction|facing same|parallel direction", flags=re.IGNORECASE),
 }
 
 # Required patterns per category (each group = interchangeable patterns)
@@ -176,8 +189,15 @@ REQUIRED_PHRASES = {
                             [phrases_dict["vector"]], [phrases_dict["cosine"],phrases_dict["angle"]], 
                             [phrases_dict["vector"]], [phrases_dict["cosine"],phrases_dict["angle"]]],
     'multi_object_viewpoint_towards_object': [[phrases_dict["location"]], [phrases_dict["location"]], [phrases_dict["vector"]],
-                                                [phrases_dict["front"]], [phrases_dict["cosine"],phrases_dict["angle"]], 
+                                                [phrases_dict["front"]], [phrases_dict["cosine"],phrases_dict["angle"]],
                                                 [phrases_dict["left"]], [phrases_dict["cosine"],phrases_dict["angle"]]],
+
+    # Rotation-specific categories (NEW)
+    'rotation_facing_toward': [[phrases_dict["location"]], [phrases_dict["location"]],
+                               [phrases_dict["front"]], [phrases_dict["vector"]],
+                               [phrases_dict["cosine"], phrases_dict["angle"]]],
+    'rotation_angle_difference': [[phrases_dict["front"]], [phrases_dict["front"]],
+                                  [phrases_dict["rotation_angle"], phrases_dict["angle"]]],
 }
 
 ALL_GROUPS = set(group_key(group) for groups in REQUIRED_PHRASES.values() for group in groups)
@@ -225,4 +245,38 @@ def process_reward(completions, category, **kwargs):
         denom = TP + TN + FP + FN
         reward = (TP + TN) / denom if denom > 0 else 1.0
         rewards.append(reward)
+    return rewards
+
+
+def rotation_reward(completions, category, **kwargs):
+    """
+    Reward function for rotation-aware spatial reasoning.
+
+    Combines:
+    1. Process reward (pattern matching for rotation categories)
+    2. Accuracy reward (correct answer)
+
+    For rotation-specific categories, uses process_reward with rotation patterns.
+    Falls back to accuracy_reward for non-rotation categories.
+    """
+    rotation_categories = {
+        'rotation_facing_toward',
+        'rotation_angle_difference',
+        'multi_object_same_direction',
+        'multi_object_parallel',
+    }
+
+    rewards = []
+
+    for completion, cat in zip(completions, category):
+        if cat in rotation_categories and cat in REQUIRED_PHRASES:
+            # Use process reward for rotation categories
+            proc_rewards = process_reward([completion], [cat], **kwargs)
+            reward = proc_rewards[0] if proc_rewards else 0.0
+        else:
+            # Fallback to 0 (let accuracy_reward handle it)
+            reward = 0.0
+
+        rewards.append(reward)
+
     return rewards

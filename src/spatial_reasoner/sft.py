@@ -24,6 +24,12 @@ from transformers import Qwen2_5_VLForConditionalGeneration, Qwen2_5_VLProcessor
 from transformers.trainer_utils import get_last_checkpoint
 from transformers import set_seed
 
+# Disable torch compile to avoid NCCL timeout issues
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
+torch._dynamo.config.cache_size_limit = 1
+os.environ["TORCHDYNAMO_DISABLE"] = "1"
+
 from spatial_reasoner.utils.callbacks import get_callbacks, EarlyStoppingCallback
 from spatial_reasoner.configs import SFTConfig
 from spatial_reasoner.utils.wandb_logging import init_wandb_training

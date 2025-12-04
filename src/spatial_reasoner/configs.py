@@ -120,3 +120,20 @@ class SFTConfig(trl.SFTConfig):
         default=7000,
         metadata={"help": "Number of steps for the early stop."},
     )
+    # Multi-view training settings
+    multiview_enabled: bool = field(
+        default=False,
+        metadata={"help": "Enable multi-view training data augmentation."},
+    )
+    multiview_data_dir: str = field(
+        default="data/multiview/",
+        metadata={"help": "Directory containing multi-view generated data."},
+    )
+    view_selection: str = field(
+        default="random",
+        metadata={"help": "View selection strategy: 'random', 'original_only', 'all'."},
+    )
+    rotation_query_weight: float = field(
+        default=1.0,
+        metadata={"help": "Weight multiplier for rotation-based queries in loss."},
+    )

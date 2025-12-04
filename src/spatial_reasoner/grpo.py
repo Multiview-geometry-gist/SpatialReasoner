@@ -26,7 +26,7 @@ import datasets
 from spatial_reasoner.utils.callbacks import get_callbacks, EarlyStoppingCallback
 from spatial_reasoner.configs import GRPOConfig
 from spatial_reasoner.trainer import Qwen2VLGRPOTrainer
-from spatial_reasoner.reward import accuracy_reward, format_reward, process_reward, reasoning_steps_reward
+from spatial_reasoner.reward import accuracy_reward, format_reward, process_reward, reasoning_steps_reward, rotation_reward
 from spatial_reasoner.utils.wandb_logging import init_wandb_training
 from spatial_reasoner.utils.utils import make_conversation_oi, make_conversation_oi_3DRwd
 from trl import ModelConfig, ScriptArguments, TrlParser, get_peft_config
@@ -135,6 +135,7 @@ def main(script_args, training_args, model_args):
         "format": format_reward,
         "process": process_reward,
         "reasoning_steps": reasoning_steps_reward,
+        "rotation": rotation_reward,
     }
     reward_funcs = [REWARD_FUNCS_REGISTRY[func] for func in script_args.reward_funcs]
 

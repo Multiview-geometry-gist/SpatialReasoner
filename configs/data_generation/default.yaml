@@ -1,0 +1,54 @@
+# Data Generation Pipeline Configuration
+# ======================================
+
+# Depth estimation settings
+depth:
+  model_name: "depth-anything/Depth-Anything-V2-Large-hf"
+  device: "cuda"
+  max_depth: 100.0
+
+# Segmentation settings (SAM2)
+segmentation:
+  model_name: "facebook/sam2-hiera-large"
+  device: "cuda"
+  points_per_side: 32
+  pred_iou_thresh: 0.8
+  stability_score_thresh: 0.9
+  min_mask_region_area: 100
+
+# View synthesis settings
+view_synthesis:
+  enabled: true
+  rotation_angles: [-5.0, 0.0, 5.0]
+  rotation_axis: "vertical"  # vertical = y-axis rotation
+  inpainting_method: "opencv"  # opencv, lama, none
+  max_hole_ratio: 0.15
+
+# Pose estimation settings
+pose_estimation:
+  method: "depth_based"  # depth_based, heuristic
+  use_pca_orientation: true
+
+# QA generation settings
+qa_generation:
+  distance_ratio: 0.30
+  directional_ratio: 0.35
+  rotation_ratio: 0.35  # Emphasized for rotation-aware training
+  num_qa_per_image: 10
+  min_objects_per_image: 2
+  max_objects_per_image: 10
+  rotation_threshold: 0.5  # cosine threshold for facing queries
+
+# I/O settings
+input_dir: "./data/openimages"
+output_dir: "./data/multiview"
+
+# Processing settings
+num_workers: 4
+batch_size: 1
+num_images: 20000
+seed: 42
+
+# Quality filtering
+min_image_size: [256, 256]
+max_image_size: [2048, 2048]
