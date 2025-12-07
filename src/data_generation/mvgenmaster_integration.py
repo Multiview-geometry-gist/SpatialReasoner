@@ -84,6 +84,9 @@ class GeneratedView:
         frame_index: Frame index in the generated sequence
         quality_score: Estimated quality score (0-1)
         metadata: Additional generation metadata
+
+    Note:
+        Call close() or use as context manager to release image memory when done.
     """
     image: Image.Image
     azimuth: float
@@ -91,14 +94,40 @@ class GeneratedView:
     frame_index: int
     quality_score: float = 1.0
     metadata: Dict[str, Any] = field(default_factory=dict)
+    _closed: bool = field(default=False, repr=False)
 
     def save(self, path: str, quality: int = 95) -> None:
         """Save view to disk."""
+        if self._closed:
+            raise ValueError("Cannot save closed view")
         self.image.save(path, quality=quality)
 
     def to_numpy(self) -> np.ndarray:
         """Convert to numpy array (H, W, 3)."""
+        if self._closed:
+            raise ValueError("Cannot convert closed view")
         return np.array(self.image)
+
+    def close(self) -> None:
+        """Release image memory. Call when view is no longer needed."""
+        if not self._closed and self.image is not None:
+            try:
+                self.image.close()
+            except Exception:
+                pass
+            self._closed = True
+
+    def __enter__(self) -> "GeneratedView":
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit - release resources."""
+        self.close()
+
+    def __del__(self):
+        """Destructor - ensure image is closed."""
+        self.close()
 
 
 @dataclass
@@ -148,6 +177,59 @@ class MVGenConfig:
     use_v_prediction: bool = True  # Required for MVGenMaster
     precision: str = "float32"  # MVGenMaster requires float32
     generation_timeout: int = 300  # Timeout in seconds (5 minutes default)
+
+    def __post_init__(self):
+        """Validate configuration values after initialization."""
+        # Validate numeric ranges
+        if not isinstance(self.num_views, int) or self.num_views <= 0:
+            raise ValueError(f"num_views must be a positive integer, got {self.num_views}")
+        if self.num_views > 100:
+            raise ValueError(f"num_views too large: {self.num_views} (max 100)")
+
+        if not isinstance(self.num_frames, int) or self.num_frames <= 0:
+            raise ValueError(f"num_frames must be a positive integer, got {self.num_frames}")
+        if self.num_frames > 100:
+            raise ValueError(f"num_frames too large: {self.num_frames} (max 100)")
+
+        if not isinstance(self.azimuth_range, (int, float)) or self.azimuth_range <= 0:
+            raise ValueError(f"azimuth_range must be positive, got {self.azimuth_range}")
+        if self.azimuth_range > 180:
+            raise ValueError(f"azimuth_range too large: {self.azimuth_range} (max 180)")
+
+        if not isinstance(self.elevation, (int, float)):
+            raise ValueError(f"elevation must be a number, got {self.elevation}")
+        if abs(self.elevation) > 90:
+            raise ValueError(f"elevation out of range: {self.elevation} (must be -90 to 90)")
+
+        if not isinstance(self.guidance_scale, (int, float)) or self.guidance_scale <= 0:
+            raise ValueError(f"guidance_scale must be positive, got {self.guidance_scale}")
+
+        if not isinstance(self.quality_threshold, (int, float)):
+            raise ValueError(f"quality_threshold must be a number, got {self.quality_threshold}")
+        if not 0 <= self.quality_threshold <= 1:
+            raise ValueError(f"quality_threshold must be 0-1, got {self.quality_threshold}")
+
+        if not isinstance(self.gpu_id, int) or self.gpu_id < 0:
+            raise ValueError(f"gpu_id must be a non-negative integer, got {self.gpu_id}")
+
+        if not isinstance(self.generation_timeout, int) or self.generation_timeout <= 0:
+            raise ValueError(f"generation_timeout must be a positive integer, got {self.generation_timeout}")
+
+        # Validate output_resolution if provided
+        if self.output_resolution is not None:
+            if not isinstance(self.output_resolution, tuple) or len(self.output_resolution) != 2:
+                raise ValueError(f"output_resolution must be (width, height) tuple, got {self.output_resolution}")
+            w, h = self.output_resolution
+            if not (isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0):
+                raise ValueError(f"output_resolution dimensions must be positive integers, got {self.output_resolution}")
+
+        # Validate precision
+        if self.precision not in ("float16", "float32", "bfloat16"):
+            raise ValueError(f"precision must be float16/float32/bfloat16, got {self.precision}")
+
+        # Validate camera_trajectory enum
+        if not isinstance(self.camera_trajectory, CameraTrajectory):
+            raise ValueError(f"camera_trajectory must be CameraTrajectory enum, got {type(self.camera_trajectory)}")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -335,15 +417,35 @@ class MVGenMasterGenerator:
             raise ValueError(f"Invalid image extension: {p.suffix}. Allowed: {_ALLOWED_IMAGE_EXTENSIONS}")
 
         # Check file size (basic sanity check)
-        if p.stat().st_size == 0:
+        file_size = p.stat().st_size
+        if file_size == 0:
             raise ValueError(f"Image file is empty: {p}")
 
-        # Optional: Validate it's actually an image
+        # Check for reasonable file size (max 100MB)
+        if file_size > 100 * 1024 * 1024:
+            raise ValueError(f"Image file too large: {file_size} bytes (max 100MB)")
+
+        # Robust image validation - check both header and pixel data
         try:
+            # First pass: verify header
             with Image.open(p) as img:
                 img.verify()
+
+            # Second pass: actually load pixel data to detect corruption
+            with Image.open(p) as img:
+                img.load()  # Force loading pixel data
+                # Basic sanity check on dimensions
+                if img.width <= 0 or img.height <= 0:
+                    raise ValueError(f"Invalid image dimensions: {img.width}x{img.height}")
+                if img.width > 10000 or img.height > 10000:
+                    raise ValueError(f"Image too large: {img.width}x{img.height} (max 10000x10000)")
+
+        except Image.DecompressionBombError as e:
+            raise ValueError(f"Image decompression bomb detected: {e}")
+        except (IOError, OSError) as e:
+            raise ValueError(f"Corrupted or invalid image file: {e}")
         except Exception as e:
-            raise ValueError(f"Invalid image file: {e}")
+            raise ValueError(f"Failed to validate image: {e}")
 
         return p
 
@@ -360,16 +462,24 @@ class MVGenMasterGenerator:
         image_path: str,
         num_views: int,
     ) -> List[GeneratedView]:
-        """Run MVGenMaster in subprocess for isolation."""
+        """Run MVGenMaster in subprocess for isolation.
+
+        Security: Uses a temporary shell script to avoid command injection via bash -c.
+        Race condition: Uses explicit cleanup to ensure views are loaded before deletion.
+        """
         # Validate input path
         validated_input = self._validate_image_path(image_path)
 
         # Validate conda environment name
         conda_env = self._validate_conda_env(self.config.conda_env)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
-            output_dir = tmpdir / "output"
+        # Create temporary directory with explicit lifecycle management
+        tmpdir_obj = tempfile.TemporaryDirectory()
+        tmpdir = Path(tmpdir_obj.name)
+        output_dir = tmpdir / "output"
+        script_path = tmpdir / "run_mvgen.sh"
+
+        try:
             output_dir.mkdir()
 
             # Build command with validated paths
@@ -386,34 +496,42 @@ class MVGenMasterGenerator:
                     text=True,
                     timeout=30
                 ).strip()
+                # Validate conda_base is a valid path
+                if not Path(conda_base).is_dir():
+                    raise ValueError(f"Invalid conda base: {conda_base}")
             except Exception as e:
                 logger.error(f"Failed to get conda base: {e}")
                 return []
 
-            # Build command with proper escaping to prevent injection
-            # Use shlex.quote for all user-controllable values
-            escaped_cmd = ' '.join(shlex.quote(arg) for arg in cmd)
-            full_cmd = (
-                f"source {shlex.quote(conda_base)}/etc/profile.d/conda.sh && "
-                f"conda activate {shlex.quote(conda_env)} && "
-                f"{escaped_cmd}"
-            )
+            # SECURITY FIX: Write commands to a shell script instead of using bash -c
+            # This avoids potential command injection through string interpolation
+            script_content = "#!/bin/bash\nset -e\n"
+            script_content += f"source {shlex.quote(str(Path(conda_base) / 'etc' / 'profile.d' / 'conda.sh'))}\n"
+            script_content += f"conda activate {shlex.quote(conda_env)}\n"
+            script_content += f"cd {shlex.quote(str(Path(self.config.mvgenmaster_root).resolve()))}\n"
+            script_content += " ".join(shlex.quote(arg) for arg in cmd) + "\n"
 
-            logger.info(f"Running MVGenMaster: {full_cmd}")
+            # Write script with restricted permissions (owner read/execute only)
+            script_path.write_text(script_content)
+            script_path.chmod(0o500)
+
+            logger.info(f"Running MVGenMaster script: {script_path}")
+            logger.debug(f"Script content:\n{script_content}")
 
             try:
                 result = subprocess.run(
-                    ["/bin/bash", "-c", full_cmd],
-                    shell=False,  # Safer: don't use shell=True
+                    ["/bin/bash", str(script_path)],
+                    shell=False,
                     capture_output=True,
                     text=True,
                     timeout=self.config.generation_timeout,
-                    cwd=str(Path(self.config.mvgenmaster_root).resolve()),
                     env=env,
                 )
 
+                logger.debug(f"MVGenMaster stdout: {result.stdout[:1000] if result.stdout else 'empty'}")
+
                 if result.returncode != 0:
-                    logger.error(f"MVGenMaster failed: {result.stderr}")
+                    logger.error(f"MVGenMaster failed (code {result.returncode}): {result.stderr}")
                     return []
 
             except subprocess.TimeoutExpired:
@@ -423,8 +541,16 @@ class MVGenMasterGenerator:
                 logger.error(f"MVGenMaster subprocess error: {e}")
                 return []
 
-            # Load generated views
-            return self._load_views(output_dir, num_views)
+            # Load generated views BEFORE cleanup
+            views = self._load_views(output_dir, num_views)
+            return views
+
+        finally:
+            # Explicit cleanup after views are loaded
+            try:
+                tmpdir_obj.cleanup()
+            except Exception as e:
+                logger.warning(f"Failed to cleanup temp directory: {e}")
 
     def _generate_direct(
         self,
@@ -491,14 +617,20 @@ class MVGenMasterGenerator:
         for idx in indices:
             view_path = view_files[idx]
             try:
-                img = Image.open(view_path).convert("RGB")
+                # Use context manager to ensure file handle is closed
+                # Copy image data to avoid issues with temp file cleanup
+                with Image.open(view_path) as src_img:
+                    # Convert and copy - this detaches from file
+                    img = src_img.convert("RGB").copy()
 
-                # Resize if needed
+                # Resize if needed (after copy, so original file is closed)
                 if self.config.output_resolution:
-                    img = img.resize(
+                    resized = img.resize(
                         self.config.output_resolution,
                         Image.Resampling.LANCZOS
                     )
+                    img.close()  # Close original before replacing
+                    img = resized
 
                 # Calculate azimuth for this frame
                 azimuth = -self.config.azimuth_range + idx * angle_step
@@ -517,6 +649,7 @@ class MVGenMasterGenerator:
             except Exception as e:
                 logger.warning(f"Failed to load view {view_path}: {e}")
 
+        logger.debug(f"Loaded {len(views)} views from {images_dir}")
         return views
 
 
