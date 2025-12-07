@@ -1,0 +1,99 @@
+# MVGenMaster View Augmentation Configuration (Approach 1)
+#
+# Configuration for generating view-augmented training data.
+# Each training image is augmented with multiple synthesized views,
+# creating separate training samples for each view.
+#
+# Usage:
+#   python -m data_generation.multiview_augmentation \
+#       --config configs/mvgenmaster/augmentation.yaml \
+#       --input_qa qa_pairs.json \
+#       --input_images images/ \
+#       --output augmented_data/
+
+# View augmentation settings
+augmentation:
+  # Number of views to generate per image
+  views_per_image: 5
+
+  # Specific rotation angles (degrees) to generate
+  # These angles are relative to the original view (0 degrees)
+  rotation_angles:
+    - -15.0
+    - -5.0
+    - 0.0
+    - 5.0
+    - 15.0
+
+  # Whether to include the original (0-degree) view
+  include_original: true
+
+  # Maximum azimuth range for view generation
+  azimuth_range: 45.0
+
+  # Camera elevation angle (degrees)
+  elevation: 5.0
+
+  # Quality filtering
+  # Views with quality score below this threshold are discarded
+  quality_threshold: 0.5
+
+  # Sample modification options
+  # Whether to modify questions based on view angle (e.g., adjust directional references)
+  modify_questions_for_view: false
+
+  # Whether to add view context description to prompts
+  add_view_context: true
+
+  # Output settings
+  output_dir: "./augmented_views"
+  save_metadata: true
+
+# MVGenMaster configuration
+mvgenmaster_config:
+  # Number of frames in generated trajectory
+  num_frames: 28
+
+  # Classifier-free guidance scale
+  guidance_scale: 2.0
+
+  # Camera settings
+  camera_longest_side: 5.0
+
+  # Paths (use defaults if not specified)
+  mvgenmaster_root: "/home/ubuntu/MVGenMaster"
+  model_dir: "/home/ubuntu/MVGenMaster/check_points/pretrained_model"
+
+  # Environment
+  conda_env: "mvgenmaster"
+  gpu_id: 0
+
+  # Processing
+  use_subprocess: true  # Recommended for isolation
+  precision: "float32"  # MVGenMaster requires float32
+  use_v_prediction: true  # Required scheduler setting
+
+# Augmentation strategies by use case
+# Uncomment the appropriate section for your use case
+
+# --- Small angle augmentation (subtle perspective changes) ---
+# augmentation:
+#   rotation_angles: [-5.0, -2.5, 0.0, 2.5, 5.0]
+#   azimuth_range: 15.0
+
+# --- Wide angle augmentation (significant viewpoint changes) ---
+# augmentation:
+#   rotation_angles: [-30.0, -15.0, 0.0, 15.0, 30.0]
+#   azimuth_range: 60.0
+
+# --- Dense augmentation (many views per image) ---
+# augmentation:
+#   views_per_image: 9
+#   rotation_angles: [-20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0]
+#   azimuth_range: 45.0
+
+# --- Minimal augmentation (fast processing) ---
+# augmentation:
+#   views_per_image: 3
+#   rotation_angles: [-10.0, 0.0, 10.0]
+#   azimuth_range: 20.0

@@ -1,0 +1,127 @@
+# MVGenMaster Inference Configuration (Approach 2)
+#
+# Configuration for end-to-end inference with multi-view generation.
+# At inference time:
+# 1. Single input image is provided
+# 2. MVGenMaster generates multiple views
+# 3. All views are fed to VLM for spatial reasoning
+#
+# Usage:
+#   from inference.mvgenmaster_inference import MVGenMasterInferencePipeline
+#
+#   pipeline = MVGenMasterInferencePipeline.from_yaml(
+#       "configs/mvgenmaster/inference.yaml"
+#   )
+#   result = pipeline.infer(image="input.jpg", question="What is left of X?")
+
+# Inference configuration
+inference:
+  # Model settings
+  model_path: "path/to/finetuned/model"  # Or Qwen/Qwen2.5-VL-7B-Instruct
+  device: "cuda:0"
+
+  # GPU for MVGenMaster (can be different from VLM)
+  # Useful for memory management on multi-GPU systems
+  mvgen_gpu: 0
+
+  # View generation settings
+  num_views: 3
+  view_angles:
+    - -15.0
+    - 0.0
+    - 15.0
+  max_angle: 15.0
+
+  # MVGenMaster settings
+  guidance_scale: 2.0
+  elevation: 5.0
+
+  # Prompt settings
+  include_view_descriptions: true
+
+  # Generation settings
+  max_new_tokens: 1024
+  temperature: 0.1
+  do_sample: false
+
+  # Caching (useful for repeated queries on same image)
+  cache_views: false
+  cache_dir: "./view_cache"
+
+# MVGenMaster paths and environment
+mvgenmaster:
+  root: "/home/ubuntu/MVGenMaster"
+  model_dir: "/home/ubuntu/MVGenMaster/check_points/pretrained_model"
+  conda_env: "mvgenmaster"
+  num_frames: 28
+  use_subprocess: true
+  precision: "float32"
+
+# Quality settings
+quality:
+  # Minimum quality score to use a generated view
+  min_quality_score: 0.5
+
+  # Fallback to single-view if view generation fails
+  fallback_to_single_view: true
+
+  # Retry settings
+  max_retries: 2
+  retry_with_different_angles: true
+
+# Performance optimization
+performance:
+  # Pre-load models on initialization
+  preload_models: true
+
+  # Batch size for view generation (if supported)
+  view_batch_size: 1
+
+  # Memory optimization
+  use_fp16: true  # For VLM inference
+  clear_cache_after_inference: true
+
+# Alternative inference configurations
+
+# --- Fast inference (fewer views, lower quality) ---
+# inference:
+#   num_views: 2
+#   view_angles: [-10.0, 10.0]
+#   max_new_tokens: 512
+# mvgenmaster:
+#   num_frames: 14
+
+# --- High-quality inference (more views, comprehensive) ---
+# inference:
+#   num_views: 5
+#   view_angles: [-20.0, -10.0, 0.0, 10.0, 20.0]
+#   max_new_tokens: 2048
+# mvgenmaster:
+#   num_frames: 28
+#   guidance_scale: 3.0
+
+# --- Memory-efficient inference (single GPU) ---
+# inference:
+#   device: "cuda:0"
+#   mvgen_gpu: 0
+#   num_views: 3
+# performance:
+#   use_fp16: true
+#   clear_cache_after_inference: true
+#   preload_models: false  # Load on demand
+
+# --- Multi-GPU inference ---
+# inference:
+#   device: "cuda:0"  # VLM on GPU 0
+#   mvgen_gpu: 1      # MVGenMaster on GPU 1
+#   num_views: 5
+# performance:
+#   preload_models: true
+
+# Logging and debugging
+logging:
+  level: "INFO"  # DEBUG for more detail
+  log_generation_time: true
+  log_view_quality: true
+  save_intermediate_views: false  # Save all generated views for debugging
+  intermediate_dir: "./debug_views"

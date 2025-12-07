@@ -1,0 +1,125 @@
+# MVGenMaster Multi-View Training Configuration (Approach 2)
+#
+# Configuration for training with multiple views as input.
+# Each training sample contains multiple images from different viewpoints,
+# leveraging Qwen2.5-VL's multi-image reasoning capabilities.
+#
+# Usage:
+#   # Build multi-view dataset
+#   python -m data_generation.multiview_dataset \
+#       --config configs/mvgenmaster/multiview_training.yaml \
+#       --input_qa qa_pairs.json \
+#       --input_images images/ \
+#       --output multiview_data/
+#
+#   # Train with multi-view data
+#   accelerate launch src/spatial_reasoner/sft.py \
+#       --config recipes/Qwen2.5-VL-7B-Instruct/sft/config_multiview.yaml
+
+# Multi-view dataset configuration
+multiview:
+  # Number of views per training sample
+  num_views: 3
+
+  # Specific view angles (degrees)
+  # If not specified, angles are calculated from num_views and max_angle
+  view_angles:
+    - -15.0
+    - 0.0
+    - 15.0
+
+  # Whether to include the original view
+  include_original: true
+
+  # Use symmetric left/right angles
+  symmetric_views: true
+
+  # Maximum azimuth angle for views
+  max_angle: 15.0
+
+  # View selection strategy
+  # - "centered": Center-weighted angles with 0 in middle
+  # - "uniform": Uniformly spaced angles
+  # - "random": Random angles (for augmentation variety)
+  view_selection: "centered"
+
+  # Output settings
+  output_dir: "./multiview_dataset"
+  image_format: "jpg"  # "jpg" or "png"
+
+# MVGenMaster configuration for view generation
+mvgenmaster_config:
+  num_frames: 28
+  guidance_scale: 2.0
+  elevation: 5.0
+  camera_longest_side: 5.0
+
+  # Paths
+  mvgenmaster_root: "/home/ubuntu/MVGenMaster"
+  model_dir: "/home/ubuntu/MVGenMaster/check_points/pretrained_model"
+
+  # Processing
+  conda_env: "mvgenmaster"
+  gpu_id: 0
+  use_subprocess: true
+  precision: "float32"
+
+# Prompt formatting options
+prompt_format:
+  # Include descriptions of each view angle
+  include_view_descriptions: true
+
+  # Template for view descriptions
+  view_description_template: "Image {idx}: {description}"
+
+  # System prompt for spatial reasoning
+  spatial_reasoning_prompt: >
+    You are viewing a scene from multiple angles.
+    Use all views to reason about spatial relationships between objects.
+    Consider how objects appear from different perspectives.
+
+# Training-specific settings for SFT
+training:
+  # Dataset settings
+  dataset_name: "multiview_spatial"
+  data_dir: "./multiview_dataset"
+
+  # Model settings
+  model_name_or_path: "Qwen/Qwen2.5-VL-7B-Instruct"
+
+  # Training hyperparameters
+  learning_rate: 1.0e-5
+  num_train_epochs: 3
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 8
+
+  # Sequence length (increased for multi-image input)
+  max_length: 12288  # Longer for multiple images
+
+  # Image processing
+  max_pixels: 1003520  # Per image
+  min_pixels: 3136
+
+  # Multi-image specific settings
+  # Qwen2.5-VL can handle up to 10 images efficiently
+  max_images_per_sample: 5
+
+# Alternative configurations for different scenarios
+
+# --- Two-view (stereo) training ---
+# multiview:
+#   num_views: 2
+#   view_angles: [-10.0, 10.0]
+#   max_angle: 10.0
+
+# --- Five-view training (comprehensive) ---
+# multiview:
+#   num_views: 5
+#   view_angles: [-20.0, -10.0, 0.0, 10.0, 20.0]
+#   max_angle: 20.0
+
+# --- Wide-angle training (for occlusion reasoning) ---
+# multiview:
+#   num_views: 3
+#   view_angles: [-30.0, 0.0, 30.0]
+#   max_angle: 30.0
