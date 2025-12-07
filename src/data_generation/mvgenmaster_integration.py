@@ -61,11 +61,16 @@ _ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
 
 
 class CameraTrajectory(str, Enum):
-    """Supported camera trajectory types for MVGenMaster."""
-    FREE = "free"  # Free-form trajectory
-    ORBIT = "orbit"  # Orbit around object
-    DOLLY = "dolly"  # Dolly zoom effect
-    SPIRAL = "spiral"  # Spiral trajectory
+    """Supported camera trajectory types for MVGenMaster.
+
+    These values must match MVGenMaster's --cam_traj argument choices.
+    See MVGenMaster/run_mvgen.py for implementation details.
+    """
+    FREE = "free"  # Free-form linear trajectory (default)
+    BI_DIRECTION = "bi_direction"  # Bi-directional sweep (left then right)
+    DISORDER = "disorder"  # Random disordered views
+    SWING1 = "swing1"  # Swing trajectory pattern 1
+    SWING2 = "swing2"  # Swing trajectory pattern 2
 
 
 @dataclass
