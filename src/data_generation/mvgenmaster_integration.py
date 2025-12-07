@@ -33,10 +33,11 @@ import json
 import subprocess
 import tempfile
 import shutil
+import shlex
 import logging
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union
 from enum import Enum
 import numpy as np
 from PIL import Image
@@ -44,10 +45,19 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 
-# Default paths for MVGenMaster installation
-_MVGENMASTER_ROOT = Path("/home/ubuntu/MVGenMaster")
-_DEFAULT_MODEL_DIR = _MVGENMASTER_ROOT / "check_points" / "pretrained_model"
-_CONDA_ENV = "mvgenmaster"
+# Default paths - configurable via environment variables
+_MVGENMASTER_ROOT = Path(os.getenv(
+    "MVGENMASTER_ROOT",
+    os.path.expanduser("~/MVGenMaster")
+))
+_DEFAULT_MODEL_DIR = Path(os.getenv(
+    "MVGENMASTER_MODEL_DIR",
+    str(_MVGENMASTER_ROOT / "check_points" / "pretrained_model")
+))
+_CONDA_ENV = os.getenv("MVGENMASTER_CONDA_ENV", "mvgenmaster")
+
+# Allowed image extensions for security
+_ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.gif'}
 
 
 class CameraTrajectory(str, Enum):
@@ -132,6 +142,7 @@ class MVGenConfig:
     num_inference_steps: int = 50
     use_v_prediction: bool = True  # Required for MVGenMaster
     precision: str = "float32"  # MVGenMaster requires float32
+    generation_timeout: int = 300  # Timeout in seconds (5 minutes default)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -291,40 +302,108 @@ class MVGenMasterGenerator:
 
         return result
 
+    def _validate_image_path(self, path: Union[str, Path]) -> Path:
+        """Validate that path is a safe image file.
+
+        Args:
+            path: Path to validate
+
+        Returns:
+            Resolved, validated Path object
+
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            ValueError: If path is not a valid image file
+        """
+        p = Path(path).resolve()
+
+        # Check existence
+        if not p.exists():
+            raise FileNotFoundError(f"Image not found: {p}")
+
+        # Check it's a file, not directory
+        if not p.is_file():
+            raise ValueError(f"Path is not a file: {p}")
+
+        # Check file extension
+        if p.suffix.lower() not in _ALLOWED_IMAGE_EXTENSIONS:
+            raise ValueError(f"Invalid image extension: {p.suffix}. Allowed: {_ALLOWED_IMAGE_EXTENSIONS}")
+
+        # Check file size (basic sanity check)
+        if p.stat().st_size == 0:
+            raise ValueError(f"Image file is empty: {p}")
+
+        # Optional: Validate it's actually an image
+        try:
+            with Image.open(p) as img:
+                img.verify()
+        except Exception as e:
+            raise ValueError(f"Invalid image file: {e}")
+
+        return p
+
+    def _validate_conda_env(self, env_name: str) -> str:
+        """Validate conda environment name to prevent injection."""
+        # Only allow alphanumeric, underscore, hyphen
+        import re
+        if not re.match(r'^[a-zA-Z0-9_-]+$', env_name):
+            raise ValueError(f"Invalid conda environment name: {env_name}")
+        return env_name
+
     def _generate_subprocess(
         self,
         image_path: str,
         num_views: int,
     ) -> List[GeneratedView]:
         """Run MVGenMaster in subprocess for isolation."""
+        # Validate input path
+        validated_input = self._validate_image_path(image_path)
+
+        # Validate conda environment name
+        conda_env = self._validate_conda_env(self.config.conda_env)
+
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
             output_dir = tmpdir / "output"
             output_dir.mkdir()
 
-            # Build command
-            cmd = self._build_command(image_path, str(output_dir))
+            # Build command with validated paths
+            cmd = self._build_command(str(validated_input), str(output_dir))
 
             # Set environment
             env = os.environ.copy()
             env["CUDA_VISIBLE_DEVICES"] = str(self.config.gpu_id)
 
-            # Run with conda environment
-            full_cmd = f"source $(conda info --base)/etc/profile.d/conda.sh && " \
-                       f"conda activate {self.config.conda_env} && " \
-                       f"{' '.join(cmd)}"
+            # Get conda base safely
+            try:
+                conda_base = subprocess.check_output(
+                    ["conda", "info", "--base"],
+                    text=True,
+                    timeout=30
+                ).strip()
+            except Exception as e:
+                logger.error(f"Failed to get conda base: {e}")
+                return []
+
+            # Build command with proper escaping to prevent injection
+            # Use shlex.quote for all user-controllable values
+            escaped_cmd = ' '.join(shlex.quote(arg) for arg in cmd)
+            full_cmd = (
+                f"source {shlex.quote(conda_base)}/etc/profile.d/conda.sh && "
+                f"conda activate {shlex.quote(conda_env)} && "
+                f"{escaped_cmd}"
+            )
 
             logger.info(f"Running MVGenMaster: {full_cmd}")
 
             try:
                 result = subprocess.run(
-                    full_cmd,
-                    shell=True,
-                    executable="/bin/bash",
+                    ["/bin/bash", "-c", full_cmd],
+                    shell=False,  # Safer: don't use shell=True
                     capture_output=True,
                     text=True,
-                    timeout=600,  # 10 minute timeout
-                    cwd=self.config.mvgenmaster_root,
+                    timeout=self.config.generation_timeout,
+                    cwd=str(Path(self.config.mvgenmaster_root).resolve()),
                     env=env,
                 )
 
@@ -333,7 +412,7 @@ class MVGenMasterGenerator:
                     return []
 
             except subprocess.TimeoutExpired:
-                logger.error("MVGenMaster timed out")
+                logger.error(f"MVGenMaster timed out after {self.config.generation_timeout}s")
                 return []
             except Exception as e:
                 logger.error(f"MVGenMaster subprocess error: {e}")
