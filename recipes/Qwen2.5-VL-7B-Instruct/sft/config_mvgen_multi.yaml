@@ -1,0 +1,105 @@
+# MVGen Multi-View Training Configuration
+# ========================================
+# Training with MVGen-augmented data, using TWO views per sample.
+# Qwen2.5-VL supports multiple images in a single conversation, enabling
+# the model to learn from multiple viewpoints simultaneously.
+#
+# Multi-View Strategy:
+#   - Primary view: Original (0-degree) view
+#   - Secondary view: Randomly selected rotated view
+#   - Both images are provided to the model in the conversation
+#   - CoT is augmented to reference both views
+#
+# This approach teaches the model to:
+#   1. Compare spatial relationships across views
+#   2. Understand how viewpoint changes affect observations
+#   3. Reason about 3D structure from 2D projections
+#
+# Usage:
+#   accelerate launch --config_file recipes/accelerate_configs/zero2.yaml \
+#     src/spatial_reasoner/sft_multiview.py \
+#     --config recipes/Qwen2.5-VL-7B-Instruct/sft/config_mvgen_multi.yaml
+
+# Model arguments
+# Using SFT-v2 checkpoint as base (58% accuracy on 3DSRBench)
+# This preserves spatial reasoning knowledge from initial training
+model_name_or_path: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-v2
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: sdpa
+
+# Data training arguments
+dataset_name: local
+dataset_test_split: val
+dataset_configs:
+  - all
+data_dir: /data/SpatialReasoner/data/openimages/
+llava_dir: /data/SpatialReasoner/data/llava/
+num_processes: 4
+
+# MVGen augmentation settings
+mvgen_enabled: true
+mvgen_data_dir: /data/SpatialReasoner/data/mvgen_augmented/
+mvgen_mode: multi  # multi = two views per sample
+view_selection: fixed_pair  # random_pair, original_plus_random, fixed_pair
+fixed_view_angles: [0.0, 10.0]  # Fixed: 0° (original) + 10° (augmented)
+
+# Multi-view specific settings
+multi_view_format: sequential  # sequential, comparison, interleaved
+# sequential: "View 1: [img1] View 2: [img2] Question..."
+# comparison: "Compare these views: [img1] and [img2]. Question..."
+# interleaved: "Looking at [img1], then from another angle [img2], Question..."
+primary_view_angle: 0.0  # Angle for primary view (0° original)
+secondary_view_selection: fixed  # Fixed 10° view
+
+# CoT augmentation settings
+cot_augmentation_enabled: true
+cot_augmentation_strategy: full  # Use full strategy for multi-view
+cot_include_angle: true
+cot_angle_precision: 1
+cot_multi_view_format: true  # Enable multi-view specific CoT templates
+
+# SFT trainer config
+dataset_text_field: ""
+dataset_kwargs:
+  skip_prepare_dataset: true
+remove_unused_columns: false
+bf16: true
+gradient_accumulation_steps: 8  # Higher for memory efficiency
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+learning_rate: 2.0e-06  # Lower LR for multi-image training
+lr_scheduler_type: cosine
+warmup_ratio: 0.15
+log_level: info
+logging_steps: 10
+logging_strategy: steps
+log_completions: true
+max_length: 3072  # Increased for multi-image inputs
+min_pixels: 59716
+max_pixels: 150000  # Reduced per image to fit two images
+max_steps: -1
+num_train_epochs: 3
+output_dir: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-MVGen-Multi
+overwrite_output_dir: true
+per_device_train_batch_size: 1  # Reduced for memory
+push_to_hub: false
+report_to:
+  - wandb
+save_strategy: steps
+save_steps: 500
+eval_strategy: "no"
+# eval_steps: 500
+seed: 42
+stop_steps: 5000
+
+# WandB settings
+wandb_project: spatial-reasoner-mvgen-multi
+wandb_entity: null
+wandb_api_key: 2f4e627868f1f9dad10bcb1a14fbf96817e6baa9
+
+# Early stopping (disabled without eval dataset)
+load_best_model_at_end: false
+# metric_for_best_model: eval_loss
+# greater_is_better: false
