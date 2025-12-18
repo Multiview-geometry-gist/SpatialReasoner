@@ -1,0 +1,39 @@
+# MVGenMaster View Synthesis Configuration
+#
+# Uses MVGenMaster diffusion model for high-quality multi-view generation.
+# Generates consistent novel views along a camera trajectory.
+#
+# Requirements:
+#   - MVGenMaster repo cloned to /home/ubuntu/MVGenMaster
+#   - Pretrained model downloaded to check_points/pretrained_model
+#   - GPU with sufficient VRAM (recommended: 24GB+)
+#   - Dependencies: torch, diffusers, dust3r, depth_pro, etc.
+#
+# To use: Set view_synthesis.backend = "mvgenmaster" in your config
+
+view_synthesis:
+  enabled: true
+  backend: "mvgenmaster"
+
+  # Rotation angles to return (will be mapped from generated trajectory)
+  rotation_angles: [-10.0, -5.0, 0.0, 5.0, 10.0]
+  rotation_axis: "vertical"
+
+  # MVGenMaster paths
+  mvgenmaster_root: "/home/ubuntu/MVGenMaster"
+  mvgenmaster_model_dir: "/home/ubuntu/MVGenMaster/check_points/pretrained_model"
+
+  # Generation settings
+  mvgenmaster_num_frames: 28  # Total frames to generate
+  mvgenmaster_guidance_scale: 2.0  # CFG scale
+  mvgenmaster_elevation: 5.0  # Initial elevation angle
+  mvgenmaster_d_phi: 45.0  # Azimuth rotation range (degrees)
+
+  # Camera settings
+  camera_longest_side: 5.0  # Camera normalization scale
+
+  # Isolation mode (recommended for avoiding dependency conflicts)
+  mvgenmaster_use_subprocess: true
+
+  # Quality thresholds (not used for diffusion-based, but kept for compatibility)
+  max_hole_ratio: 0.15

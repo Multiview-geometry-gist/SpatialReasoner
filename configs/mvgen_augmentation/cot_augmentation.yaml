@@ -1,0 +1,41 @@
+# CoT (Chain of Thought) Augmentation Configuration
+# ==================================================
+# Configuration for modifying answer_cot to include view awareness.
+#
+# Strategies:
+#   - prefix: Add view context at the beginning
+#   - inline: Insert view references throughout
+#   - suffix: Add view summary at the end
+#   - full: Complete CoT rewrite with view awareness
+#
+# Usage:
+#   from src.data_generation.cot_augmentation import CoTAugmentor, CoTAugmentationConfig
+#
+#   config = CoTAugmentationConfig.from_yaml("configs/mvgen_augmentation/cot_augmentation.yaml")
+#   augmentor = CoTAugmentor(config)
+
+# Augmentation strategy
+# Options: prefix, inline, suffix, full
+strategy: prefix
+
+# Angle formatting
+include_angle_value: true  # Include numeric angle in text
+angle_precision: 1  # Decimal places for angle (e.g., 15.0 vs 15)
+
+# View descriptors for different angle ranges
+# These are used to generate natural language descriptions
+view_descriptors:
+  large_left: "significantly rotated left"
+  left: "rotated left"
+  slight_left: "slightly rotated left"
+  center: "straight-on"
+  slight_right: "slightly rotated right"
+  right: "rotated right"
+  large_right: "significantly rotated right"
+
+# Preservation settings
+preserve_answer: true  # Keep the final answer (A/B/C/D) unchanged
+
+# Variation settings
+random_variation: true  # Use random template variations for diversity
+seed: 42  # Random seed for reproducibility

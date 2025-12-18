@@ -1,7 +1,7 @@
 batch_size=36
 gpu_ids=0,1,2,3
-result_name=SpatialReasoner-SFT
-model_path=YOUR_SpatialReasoner-SFT_MODEL_NAME/PATH
+result_name=SpatialReasoner-SFT-Augmented
+model_path=/data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-Augmented
 
 datasets=("3DSRBench" "CV-Bench-3D")
 prompt_paths=("./data/3dsrbench_v1_vlmevalkit_circular.tsv" "./data/CV-Bench-3D.tsv")

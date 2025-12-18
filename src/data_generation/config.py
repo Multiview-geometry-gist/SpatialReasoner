@@ -30,19 +30,85 @@ class SegmentationConfig:
 
 @dataclass
 class ViewSynthesisConfig:
-    """Novel view synthesis configuration."""
+    """Novel view synthesis configuration.
+
+    Extended to support multi-backend architecture with fallback.
+
+    Backends:
+        - depth_warping: Fast, CPU-friendly (default)
+        - zeronvs: High-quality diffusion-based
+        - zero123pp: Object-centric multi-view
+        - mvgenmaster: MVGenMaster diffusion-based multi-view
+        - hybrid: Quality-based fallback
+
+    See configs/view_synthesis/*.yaml for detailed configuration templates.
+    """
     enabled: bool = True
+    backend: str = "depth_warping"  # Backend selection
     rotation_angles: List[float] = field(default_factory=lambda: [-5.0, 0.0, 5.0])
     rotation_axis: str = "vertical"  # "vertical" (y-axis) or "horizontal" (x-axis)
     inpainting_method: str = "opencv"  # "opencv", "lama", "none"
     max_hole_ratio: float = 0.15  # Skip if holes > 15%
+    device: str = "cuda"
+
+    # Hybrid fallback settings
+    fallback_backends: List[str] = field(
+        default_factory=lambda: ["depth_warping", "zeronvs"]
+    )
+    fallback_hole_threshold: float = 0.10  # Trigger fallback if holes > 10%
+
+    # ZeroNVS settings
+    zeronvs_model: str = "stabilityai/stable-zero123"
+    num_inference_steps: int = 50
+    guidance_scale: float = 3.0
+
+    # Zero123++ settings
+    zero123_model: str = "sudo-ai/zero123plus-v1.2"
+
+    # MVGenMaster settings
+    mvgenmaster_root: str = "/home/ubuntu/MVGenMaster"
+    mvgenmaster_model_dir: str = "/home/ubuntu/MVGenMaster/check_points/pretrained_model"
+    mvgenmaster_num_frames: int = 28
+    mvgenmaster_guidance_scale: float = 2.0
+    mvgenmaster_elevation: float = 5.0
+    mvgenmaster_d_phi: float = 45.0
+    mvgenmaster_use_subprocess: bool = True  # Run in subprocess for isolation
+    camera_longest_side: float = 5.0  # Camera normalization scale
 
 
 @dataclass
 class PoseEstimationConfig:
-    """6-DOF pose estimation configuration."""
-    method: str = "depth_based"  # "depth_based" or "heuristic"
+    """6-DOF pose estimation configuration.
+
+    Extended to support multi-backend architecture with fallback.
+
+    Backends:
+        - depth_based: Uses depth map + PCA for orientation (default)
+        - orient_anything: Uses Orient-Anything neural network
+        - hybrid: Combines depth-based position with neural orientation
+
+    See pose_estimation/ package for implementation details.
+    """
+    # Backend selection
+    backend: str = "depth_based"  # "depth_based", "orient_anything", "hybrid"
+    method: str = "depth_based"  # Legacy compatibility (maps to backend)
+
+    # Depth-based settings
     use_pca_orientation: bool = True
+
+    # Orient-Anything settings
+    orient_anything_model_path: Optional[str] = None  # None = use default HuggingFace model
+    orient_anything_device: str = "cuda"
+    use_background_removal: bool = False  # Remove background before orientation estimation
+    use_inference_augmentation: bool = False  # Use test-time augmentation
+
+    # Quality settings
+    min_mask_pixels: int = 10  # Minimum pixels for valid object
+    confidence_threshold: float = 0.0  # Minimum confidence for valid pose
+
+    # Hybrid settings
+    fallback_to_depth: bool = True  # Fall back to depth_based if orient_anything fails
+    hybrid_confidence_threshold: float = 0.5  # Min Orient-Anything confidence for hybrid
 
 
 @dataclass

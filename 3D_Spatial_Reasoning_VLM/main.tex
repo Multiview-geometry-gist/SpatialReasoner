@@ -1,0 +1,120 @@
+% CVPR 2026 Paper Template; see https://github.com/cvpr-org/author-kit
+
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+%%%%%%%%% PAPER TYPE  - PLEASE UPDATE FOR FINAL VERSION
+\usepackage{cvpr}              % To produce the CAMERA-READY version
+% \usepackage[review]{cvpr}      % To produce the REVIEW version
+% \usepackage[pagenumbers]{cvpr} % To force page numbers, e.g. for an arXiv version
+
+% Import additional packages in the preamble file, before hyperref
+\input{preamble}
+
+% It is strongly recommended to use hyperref, especially for the review version.
+% hyperref with option pagebackref eases the reviewers' job.
+% Please disable hyperref *only* if you encounter grave issues, 
+% e.g. with the file validation for the camera-ready version.
+%
+% If you comment hyperref and then uncomment it, you should delete *.aux before re-running LaTeX.
+% (Or just hit 'q' on the first LaTeX run, let it finish, and you should be clear).
+\definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
+\usepackage[pagebackref,breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
+
+% Use the postscript times font!
+\usepackage{lipsum} 
+\usepackage{times}
+\usepackage{soul}
+\usepackage{url}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage[switch]{lineno}
+\usepackage{color, colortbl}
+\usepackage{comment}
+\usepackage{xcolor}
+\usepackage{tabularx}
+% \usepackage{todonotes}
+\usepackage{kotex}
+\usepackage{multirow}
+\usepackage{appendix}
+\usepackage{makecell}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+
+% Define promptbox environment
+\newtcolorbox{promptbox}[1][]{
+    colback=gray!5!white,
+    colframe=gray!75!black,
+    fonttitle=\bfseries\small,
+    title=#1,
+    boxrule=0.5pt,
+    arc=2pt,
+    left=6pt,
+    right=6pt,
+    top=4pt,
+    bottom=4pt
+}
+
+\newcommand{\lsp}[1]{\todo[inline,color=blue!20!white]{\textbf{Seungpil:} #1}}
+\newcommand{\kdy}[1]{\todo[inline,color=green!20!white]{\textbf{Daeyeon:} #1}}
+
+%%%%%%%%% PAPER ID  - PLEASE UPDATE
+\def\paperID{*****} % *** Enter the Paper ID here
+\def\confName{CVPR}
+\def\confYear{2026}
+
+%%%%%%%%% TITLE - PLEASE UPDATE
+\title{Enhancing 3D Spatial Reasoning in Vision-Language Models through Multi-View Augmentation and Quaternion-Based Representation}
+
+%%%%%%%%% AUTHORS - PLEASE UPDATE
+\author{Seungpil Lee\\
+Gwangju Institute of Science and Technology \\
+% Institution1 address\\
+{\tt\small iamseungpil@gm.gist.ac.kr}
+% For a paper whose authors are all at the same institution,
+% omit the following lines up until the closing ``}''.
+% Additional authors and addresses can be added with ``\and'',
+% just like the second author.
+% To save space, use either the email address or home page, not both
+\and
+Daeyeon Kim\\
+Gwangju Institute of Science and Technology\\
+% First line of institution2 address\\
+{\tt\small daeyeonkim@gm.gist.ac.kr}
+}
+
+\begin{document}
+\maketitle
+
+\input{proposal/0.abstract}
+\input{proposal/1.intro}
+% \input{proposal/2.related_works}
+\input{proposal/3.methods}
+\input{proposal/4.experiments}
+\input{proposal/5.conclusion}
+{
+    \small
+    \bibliographystyle{ieeenat_fullname}
+    \bibliography{main}
+}
+
+
+\iffalse
+\input{sec/0_abstract}    
+\input{sec/1_intro}
+\input{sec/2_formatting}
+\input{sec/3_finalcopy}
+{
+    \small
+    \bibliographystyle{ieeenat_fullname}
+    \bibliography{main}
+}
+\fi
+
+% WARNING: do not forget to delete the supplementary pages from your submission 
+% \input{sec/X_suppl}
+
+\end{document}

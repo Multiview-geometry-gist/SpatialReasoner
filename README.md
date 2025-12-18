@@ -108,6 +108,43 @@ bash local_scripts/infer_spatialreasoner.sh
 
 Results for `CVBench3D` are printed to the terminal (stdout), and the final results for `3DSRBench` are saved to `results_3DSRBench.csv`.
 
+## Multi-View Extension
+
+This fork extends SpatialReasoner with multi-view spatial reasoning capabilities using MVGenMaster for novel view synthesis.
+
+### Key Features
+
+- **MVGenMaster Integration**: Generate photorealistic rotated views (10°) from single images
+- **Multi-View Training**: Train with paired original and synthesized views
+- **View-Aware CoT**: Chain-of-thought annotations transformed for each viewpoint
+- **Multi-View Inference**: Evaluate using dual-view inputs for improved spatial reasoning
+
+### Results on 3DSRBench
+
+| Model | Accuracy |
+|-------|----------|
+| SpatialReasoner (RL) | 60.3% |
+| **Ours (Multi-View)** | **60.1%** |
+
+Our approach achieves comparable performance to SpatialReasoner without reinforcement learning, using geometric consistency across synthesized viewpoints instead.
+
+### Multi-View Training
+
+```bash
+# Generate rotated views using MVGenMaster
+python src/data_generation/mvgenmaster_integration.py
+
+# Train with multi-view data
+bash local_scripts/train_viewaware_cot_gpu4567.sh
+```
+
+### Multi-View Inference
+
+```bash
+# Run inference with dual-view inputs
+bash local_scripts/run_multiview_inference_precomputed.sh
+```
+
 ## Citation
 
 If you find this repository helpful, please consider citing:

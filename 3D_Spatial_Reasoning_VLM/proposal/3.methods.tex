@@ -1,0 +1,53 @@
+\section{Method}
+\label{sec:methods}
+
+\subsection{Overview}
+
+Multi-view consistency provides a fundamental constraint for 3D spatial understanding. Our approach leverages this principle by training vision-language models to reason about spatial relationships from multiple synthesized viewpoints. Unlike depth-based methods that suffer from occlusion artifacts and require complex inpainting, we employ a generative view synthesis model that produces photorealistic novel views while preserving scene semantics. The training pipeline integrates these synthesized views with viewpoint-aware chain-of-thought supervision, enabling the model to learn to integrate spatial information across multiple views.
+
+\subsection{Generative View Synthesis}
+
+High-fidelity view synthesis is essential for multi-view spatial reasoning. We adopt MVGenMaster~\cite{ren2025mvgenmaster}, a video diffusion model that generates temporally coherent novel views from a single input image. Given an input image $I_0$, the model synthesizes a rotated view $I_\theta$ by conditioning on the desired camera transformation:
+\begin{equation}
+I_\theta = \mathcal{G}(I_0, \Delta\phi, \Delta\theta)
+\end{equation}
+where $\Delta\phi$ and $\Delta\theta$ represent azimuth and elevation changes respectively. The diffusion-based generation produces complete images with reduced artifacts compared to geometric projection methods that require occlusion handling and hole-filling.
+
+We generate views at $\pm 10^\circ$ azimuth rotation, balancing viewpoint diversity with semantic preservation. This small rotation angle ensures that spatial relationships remain interpretable while providing sufficient geometric variation for robust 3D understanding. Each training sample thus consists of paired views $(I_0, I_{10^\circ})$ depicting the same scene from complementary perspectives.
+
+\subsection{View-Aware Chain-of-Thought Transformation}
+
+Spatial reasoning benefits from explicit geometric reasoning in chain-of-thought format. However, standard chain-of-thought annotations describe spatial relationships from a fixed viewpoint, creating inconsistency when paired with rotated views. We address this through coordinate transformation that adapts spatial descriptions to each viewpoint.
+
+For an object at position $(x, y, z)$ in the original view, its coordinates in a rotated view are computed via:
+\begin{equation}
+\begin{bmatrix} x' \\ y' \\ z' \end{bmatrix} = R_\theta \begin{bmatrix} x \\ y \\ z \end{bmatrix}
+\end{equation}
+where $R_\theta$ is the rotation matrix corresponding to camera transformation. Directional relationships (left/right, front/back) are similarly transformed to maintain consistency with the visual content. This view-aware transformation enables the model to learn that spatial relationships are observer-dependent while the underlying 3D structure remains invariant.
+
+\subsection{Multi-View Training Framework}
+
+The training objective encourages view-consistent spatial understanding. For each sample, we construct multi-view inputs by concatenating the original and synthesized views with explicit viewpoint annotations, specifying the rotation angle for each view before presenting the spatial reasoning question. This structured format enables the model to associate each visual input with its corresponding viewpoint, facilitating cross-view reasoning. The prompt template is illustrated below.
+
+\begin{promptbox}[Multi-View Spatial Reasoning Prompt]
+\small
+View 1 (rotation: 0 degrees):\\
+View 2 (rotation: 10 degrees):\\
+\\
+Question: Is the cup to the left of the bottle?\\
+Options:\\
+A. Yes \quad B. No\\
+\\
+Let's think step by step.\\
+The cup is at position (0.3, 0.5, 2.1).\\
+The bottle is at position (0.7, 0.4, 2.3).\\
+Comparing x-coordinates: 0.3 < 0.7.\\
+Therefore, the cup is to the left of the bottle.\\
+Answer: A
+\end{promptbox}
+
+We fine-tune Qwen2.5-VL~\cite{bai2025qwen25vl} using LoRA~\cite{hu2021lora} on the augmented dataset. The model processes both views jointly, learning to integrate information across viewpoints for spatial inference. Chain-of-thought supervision with view-transformed coordinates provides intermediate reasoning steps, guiding the model toward geometrically grounded predictions.
+
+\subsection{Multi-View Inference}
+
+Inference follows the same multi-view paradigm established during training. Given a test image, we synthesize an additional view at $10^\circ$ rotation and present both views to the model with consistent formatting. This approach maintains the train-test alignment crucial for multi-view reasoning, allowing the model to leverage complementary geometric information from both viewpoints. The dual-view input provides parallax cues that disambiguate depth relationships otherwise challenging to infer from a single image.

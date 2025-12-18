@@ -381,9 +381,13 @@ class ViewAugmentedDataGenerator:
         question = qa_pair.get("question", "")
         answer = qa_pair.get("answer_cot", qa_pair.get("answer", ""))
 
-        # Optionally modify question based on view
+        # Modify question based on view
         if self.config.modify_questions_for_view and not view_metadata.is_original:
             question = self._modify_question_for_view(question, view_metadata)
+            
+        # Modify answer (CoT) based on view
+        if not view_metadata.is_original:
+            answer = self._modify_answer_for_view(answer, view_metadata)
 
         # Optionally add view context
         spatial_context = None
@@ -407,13 +411,63 @@ class ViewAugmentedDataGenerator:
         question: str,
         view_metadata: ViewMetadata,
     ) -> str:
-        """Modify question to account for view change.
-
-        This can adjust directional references based on the camera rotation.
-        """
-        # For now, keep questions unchanged
-        # Future: implement directional reference adjustment
+        """Modify question to account for view change."""
+        # Future: implement directional reference adjustment if needed
         return question
+
+    def _modify_answer_for_view(
+        self,
+        answer: str,
+        view_metadata: ViewMetadata,
+    ) -> str:
+        """Modify CoT answer to reflect the new view perspective.
+        
+        Updates:
+        1. 3D coordinates (x, y, z) by applying rotation
+        2. Vector components
+        """
+        import re
+        
+        azimuth_deg = view_metadata.azimuth
+        if abs(azimuth_deg) < 0.1:
+            return answer
+            
+        # Rotation matrix for azimuth (around Y axis)
+        # We rotate the CAMERA around the object, which is equivalent to 
+        # rotating the coordinate system.
+        # If camera moves +Azimuth (right), the object coordinates in camera frame
+        # rotate by -Azimuth.
+        theta = np.radians(-azimuth_deg)
+        c, s = np.cos(theta), np.sin(theta)
+        
+        # Rotation matrix around Y axis
+        R = np.array([
+            [c, 0, s],
+            [0, 1, 0],
+            [-s, 0, c]
+        ])
+        
+        def rotate_coords(match):
+            try:
+                x = float(match.group(1))
+                y = float(match.group(2))
+                z = float(match.group(3))
+                
+                # Apply rotation
+                vec = np.array([x, y, z])
+                new_vec = R @ vec
+                
+                return f"({new_vec[0]:.2f}, {new_vec[1]:.2f}, {new_vec[2]:.2f})"
+            except ValueError:
+                return match.group(0)
+
+        # Regex to find (x.xx, y.yy, z.zz) patterns
+        # Matches numbers with optional minus sign and decimals
+        coord_pattern = r"\((-?\d+\.?\d*),\s*(-?\d+\.?\d*),\s*(-?\d+\.?\d*)\)"
+        
+        new_answer = re.sub(coord_pattern, rotate_coords, answer)
+        
+        return new_answer
 
     def _create_view_context(self, view_metadata: ViewMetadata) -> str:
         """Create contextual description of the view angle."""

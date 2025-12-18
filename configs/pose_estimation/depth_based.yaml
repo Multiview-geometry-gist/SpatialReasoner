@@ -1,0 +1,18 @@
+# Depth-Based Pose Estimation Configuration
+#
+# Uses depth map back-projection and PCA for orientation estimation.
+# This is the default backend - fast and reliable without GPU.
+#
+# To use: Set pose_estimation.backend = "depth_based" in your config
+
+pose_estimation:
+  backend: "depth_based"
+
+  # Orientation estimation method
+  # - true: Use PCA on 3D point cloud (better for elongated objects)
+  # - false: Use camera-facing heuristic (simpler, always faces camera)
+  use_pca_orientation: true
+
+  # Quality thresholds
+  min_mask_pixels: 10  # Skip objects with fewer pixels
+  confidence_threshold: 0.0  # No confidence filtering (depth-based doesn't provide confidence)

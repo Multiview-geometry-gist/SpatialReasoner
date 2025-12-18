@@ -564,10 +564,31 @@ class MVGenMasterGenerator:
 
     def _build_command(self, input_path: str, output_path: str) -> List[str]:
         """Build the MVGenMaster command."""
+        
+        # Fix for MVGenMaster path issue:
+        # run_mvgen.py prepends "./" to model_dir, so we must provide a relative path
+        # if we are running from the MVGenMaster root.
+        model_dir_path = Path(self.config.model_dir)
+        root_path = Path(self.config.mvgenmaster_root)
+        
+        try:
+            # Try to make model_dir relative to root
+            if model_dir_path.is_absolute():
+                rel_model_dir = model_dir_path.relative_to(root_path)
+                model_dir_str = str(rel_model_dir)
+            else:
+                model_dir_str = str(model_dir_path)
+        except ValueError:
+            # If not relative (e.g. separate drive or path), warn and use absolute
+            # This might still fail with the "./" prepend bug in MVGenMaster,
+            # but it's the best we can do without modifying external code.
+            logger.warning(f"Model dir {model_dir_path} is not inside root {root_path}. This may cause issues.")
+            model_dir_str = str(model_dir_path)
+
         cmd = [
             "python", "run_mvgen.py",
             "--input_path", input_path,
-            "--model_dir", self.config.model_dir,
+            "--model_dir", model_dir_str,
             "--output_path", output_path,
             "--nframe", str(self.config.num_frames),
             "--val_cfg", str(self.config.guidance_scale),

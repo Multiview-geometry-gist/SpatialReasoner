@@ -21,8 +21,8 @@ import random
 from .config import DataGenerationConfig
 from .depth_estimation import DepthEstimator
 from .segmentation import ObjectSegmenter, SegmentationResult
-from .view_synthesis import ViewSynthesizer, SynthesizedView
-from .pose_estimation import PoseEstimator, ObjectPose
+from .view_synthesis import create_view_synthesizer, SynthesizedView
+from .pose_estimation import create_pose_estimator, ObjectPose
 from .qa_generation import QAGenerator, QAPair
 
 
@@ -41,11 +41,16 @@ class DataGenerationPipeline:
         self.segmenter = ObjectSegmenter(config.segmentation)
 
         if config.view_synthesis.enabled:
-            self.view_synthesizer = ViewSynthesizer(config.view_synthesis)
+            # Use factory to create appropriate synthesizer based on config
+            self.view_synthesizer = create_view_synthesizer(config.view_synthesis)
+            logger.info(f"View synthesizer backend: {self.view_synthesizer.backend_name}")
         else:
             self.view_synthesizer = None
 
-        self.pose_estimator = PoseEstimator(config.pose_estimation)
+        # Use factory to create appropriate pose estimator based on config
+        self.pose_estimator = create_pose_estimator(config.pose_estimation)
+        logger.info(f"Pose estimator backend: {self.pose_estimator.backend_name}")
+
         self.qa_generator = QAGenerator(config.qa_generation)
 
     def process_single_image(

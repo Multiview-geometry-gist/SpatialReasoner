@@ -1,0 +1,26 @@
+# Fast View Synthesis Configuration
+# ==================================
+#
+# Uses depth-warping only for maximum speed.
+# Best for testing, prototyping, or when GPU is unavailable.
+#
+# Requirements:
+#   - OpenCV (pip install opencv-python)
+#   - No GPU required
+
+view_synthesis:
+  enabled: true
+  backend: "depth_warping"
+
+  rotation_angles: [-5.0, 0.0, 5.0]
+  rotation_axis: "vertical"
+  max_hole_ratio: 0.20  # More tolerant of holes
+  device: "cpu"  # No GPU needed
+
+  depth_warping:
+    inpainting_method: "opencv"
+    rotation_axis: "vertical"
+
+  # Hybrid disabled - depth_warping only
+  hybrid:
+    enable_fallback: false

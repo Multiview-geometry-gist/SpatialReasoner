@@ -1,0 +1,34 @@
+# Object-Centric View Synthesis Configuration
+# ============================================
+#
+# Uses Zero123++ which is optimized for single-object images.
+# Best for product photos, rendered objects, or images with clean backgrounds.
+#
+# Requirements:
+#   - GPU with 16GB+ VRAM
+#   - pip install diffusers transformers
+#
+# Note: Zero123++ generates 6 fixed views. The closest view to the
+# requested angle will be returned.
+
+view_synthesis:
+  enabled: true
+  backend: "zero123pp"
+
+  # Zero123++ has fixed output angles, but we can request specific ones
+  # and it will return the closest available view
+  rotation_angles: [-5.0, 0.0, 5.0]
+  rotation_axis: "vertical"
+  max_hole_ratio: 0.15
+  device: "cuda"
+
+  zero123:
+    model_name: "sudo-ai/zero123plus-v1.2"
+    num_inference_steps: 75
+
+  # Fallback to depth warping if Zero123++ fails
+  hybrid:
+    fallback_backends:
+      - "zero123pp"
+      - "depth_warping"
+    enable_fallback: true

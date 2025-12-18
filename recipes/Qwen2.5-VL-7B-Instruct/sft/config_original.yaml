@@ -1,0 +1,61 @@
+# Original SpatialReasoner SFT Training Configuration
+# All paths configured for /data storage
+
+# Model arguments
+model_name_or_path: Qwen/Qwen2.5-VL-7B-Instruct
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: sdpa
+
+# Data training arguments
+dataset_name: ccvl/SpatialReasonerTrain-SFT
+dataset_test_split: val
+dataset_configs:
+- all
+data_dir: /data/SpatialReasoner/data/openimages/
+llava_dir: /data/SpatialReasoner/data/llava/
+num_processes: 4
+
+# SFT trainer config
+dataset_text_field: ""
+dataset_kwargs:
+  skip_prepare_dataset: true
+remove_unused_columns: false
+bf16: true
+gradient_accumulation_steps: 1
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+learning_rate: 5.0e-06
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+log_level: info
+logging_steps: 10
+logging_strategy: steps
+log_completions: true
+max_length: 2048
+
+# Image processing - FIXED resolution to ensure consistent vision token counts across GPUs
+# This prevents "mismatch between collectives on ranks" errors in distributed training
+min_pixels: 100352
+max_pixels: 100352
+
+# Dataloader optimization - CRITICAL for preventing NCCL timeouts
+dataloader_num_workers: 4
+dataloader_prefetch_factor: 2
+dataloader_persistent_workers: true
+dataloader_pin_memory: true
+max_steps: -1
+num_train_epochs: 10
+output_dir: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-v2
+overwrite_output_dir: false
+resume_from_checkpoint: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-v2/checkpoint-1500
+per_device_train_batch_size: 4
+push_to_hub: false
+report_to:
+- wandb
+save_strategy: steps
+save_steps: 500
+# Changed seed to avoid problematic batch at step 1910
+seed: 123
+stop_steps: 7000

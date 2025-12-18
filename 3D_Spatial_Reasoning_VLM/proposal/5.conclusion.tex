@@ -1,0 +1,8 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have presented a multi-view approach to spatial reasoning that leverages generative view synthesis for vision-language model training and inference. The method addresses a fundamental limitation of single-view spatial understanding: the inherent ambiguity in inferring 3D relationships from 2D observations. By synthesizing complementary viewpoints and training models to reason across views, we explore an alternative approach to spatial inference grounded in geometric consistency.
+
+Our experiments demonstrate that the benefit of multi-view training is realized only when inference follows the same paradigm. Models trained on multi-view data but evaluated on single images fail to improve over simpler baselines, revealing a distribution mismatch that underscores the importance of train-test alignment. When both training and inference utilize dual-view inputs, our approach achieves 60.1\% accuracy on 3DSRBench, comparable to SpatialReasoner's 60.3\% obtained through reinforcement learning. This suggests that explicit geometric reasoning across views offers a viable alternative to RL-based refinement for spatial understanding.
+
+The approach opens several directions for future investigation. Adaptive view selection could optimize the synthesized viewpoint based on scene content, maximizing the discriminative power of multi-view input for each query. Integration with depth estimation models could provide complementary geometric cues alongside synthesized views. Extension to video understanding would leverage temporal multi-view consistency for dynamic spatial reasoning. These directions point toward increasingly sophisticated spatial understanding in vision-language models.

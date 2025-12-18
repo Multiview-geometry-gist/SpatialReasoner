@@ -19,6 +19,20 @@ from PIL import Image
 import torch
 import datasets
 import transformers
+
+# Fix PyTorch 2.6 weights_only issue for DeepSpeed checkpoint loading
+# Monkey-patch DeepSpeed's checkpoint engine to use weights_only=False
+import deepspeed.runtime.checkpoint_engine.torch_checkpoint_engine as _ds_ckpt_engine
+
+_original_load = _ds_ckpt_engine.TorchCheckpointEngine.load
+
+def _patched_load(self, path, map_location=None):
+    """Patched load that uses weights_only=False for PyTorch 2.6+ compatibility."""
+    import torch
+    partition = torch.load(path, map_location=map_location, weights_only=False)
+    return partition
+
+_ds_ckpt_engine.TorchCheckpointEngine.load = _patched_load
 from datasets import load_dataset
 from transformers import Qwen2_5_VLForConditionalGeneration, Qwen2_5_VLProcessor
 from transformers.trainer_utils import get_last_checkpoint
@@ -116,22 +130,42 @@ def main(script_args, training_args, model_args):
     def collate_fn(examples):
         samples = []
         for example in examples:
-            if example['question']:
-                if example["A"]:
-                    options = [f"{opt}. {example[opt]}" for opt in ["A", "B", "C", "D"] if example[opt]]
+            if 'question' in example and example['question']:
+                # Handle standard/augmented format
+                if example.get("A"):
+                    options = [f"{opt}. {example[opt]}" for opt in ["A", "B", "C", "D"] if example.get(opt)]
                     question_text = example["question"]
                     options_text = "\n".join(options)
                     question = f"Question: {question_text}\nOptions:\n{options_text}\nPlease select the correct answer from the options above."
                 else:
                     question = example["question"]
                 
-                image_path = os.path.join(training_args.data_dir, example["image_filename"])
-                image = Image.open(image_path).convert("RGB")
+                # Support for multi-view (Experiment 2)
+                user_content = []
+                if "view_images" in example and isinstance(example["view_images"], list):
+                    # Load multiple images
+                    for img_filename in example["view_images"]:
+                        image_path = os.path.join(training_args.data_dir, img_filename)
+                        if os.path.exists(image_path):
+                            image = Image.open(image_path).convert("RGB")
+                            user_content.append({"type": "image", "image": image})
+                        else:
+                            logger.warning(f"Image not found: {image_path}")
+                
+                # Fallback to single image (Experiment 1 / Original)
+                elif "image_filename" in example:
+                    image_path = os.path.join(training_args.data_dir, example["image_filename"])
+                    if os.path.exists(image_path):
+                        image = Image.open(image_path).convert("RGB")
+                        user_content.append({"type": "image", "image": image})
+                    else:
+                        logger.warning(f"Image not found: {image_path}")
+                
+                # Add question text
+                user_content.append({"type": "text", "text": question})
+                
                 converted_sample = [
-                        {"role": "user", "content": [
-                            {"type": "image", 'image': image},
-                            {"type": "text", "text": question}]
-                            },
+                        {"role": "user", "content": user_content},
                         {"role": "assistant", "content": [
                             {"type": "text", "text": example['answer_cot']}]},
                     ]
@@ -154,10 +188,42 @@ def main(script_args, training_args, model_args):
                 samples.append(converted_sample)
         
 
-        batch = processor.apply_chat_template(samples, tokenize=True, return_dict=True, return_tensors="pt", padding=True)
-        
+        # Use max_length padding to ensure consistent tensor shapes across all GPUs
+        # This prevents "mismatch between collectives on ranks" errors in distributed training
+        batch = processor.apply_chat_template(
+            samples,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            padding="max_length",
+            max_length=training_args.max_length,
+            truncation=True
+        )
+
+        # CRITICAL: Force explicit padding to max_length to prevent GPU synchronization issues
+        # The apply_chat_template may not pad correctly for VLM models
+        max_len = training_args.max_length
+        pad_token_id = processor.tokenizer.pad_token_id
+
+        for key in ["input_ids", "attention_mask"]:
+            if key in batch:
+                current_len = batch[key].shape[1]
+                if current_len < max_len:
+                    # Pad to max_length
+                    pad_value = pad_token_id if key == "input_ids" else 0
+                    padding = torch.full(
+                        (batch[key].shape[0], max_len - current_len),
+                        pad_value,
+                        dtype=batch[key].dtype,
+                        device=batch[key].device
+                    )
+                    batch[key] = torch.cat([batch[key], padding], dim=1)
+                elif current_len > max_len:
+                    # Truncate to max_length
+                    batch[key] = batch[key][:, :max_len]
+
         labels = batch["input_ids"].clone()  # Clone input IDs for labels
-        labels[labels == processor.tokenizer.pad_token_id] = -100  # Mask padding tokens in labels
+        labels[labels == pad_token_id] = -100  # Mask padding tokens in labels
 
         # Ignore the image token index in the loss computation (model specific)
         if isinstance(processor, Qwen2_5_VLProcessor):  # Check if the processor is Qwen2VLProcessor

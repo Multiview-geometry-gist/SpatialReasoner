@@ -1,0 +1,35 @@
+# Hybrid Pose Estimation Configuration
+#
+# Combines Orient-Anything with depth-based fallback:
+#   1. Try Orient-Anything first for orientation
+#   2. If confidence < threshold, fall back to depth-based PCA
+#   3. If Orient-Anything fails, use depth-based entirely
+#
+# This provides the best of both worlds:
+#   - Neural network accuracy when it works well
+#   - Reliable fallback for edge cases
+#
+# Requirements: Same as orient_anything.yaml
+#
+# To use: Set pose_estimation.backend = "hybrid" in your config
+
+pose_estimation:
+  backend: "hybrid"
+
+  # Confidence threshold for using Orient-Anything results
+  # If Orient-Anything confidence < this value, use depth-based instead
+  hybrid_confidence_threshold: 0.5
+
+  # Orient-Anything settings (used as primary)
+  orient_anything_model_path: null
+  orient_anything_device: "cuda"
+  use_background_removal: false
+  use_inference_augmentation: false
+
+  # Depth-based settings (used as fallback)
+  use_pca_orientation: true
+  fallback_to_depth: true
+
+  # Quality thresholds
+  min_mask_pixels: 10
+  confidence_threshold: 0.0

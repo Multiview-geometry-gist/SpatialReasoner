@@ -1,0 +1,35 @@
+# Orient-Anything Pose Estimation Configuration
+#
+# Uses Orient-Anything neural network for accurate orientation estimation.
+# Position and scale are still computed from depth map.
+#
+# Requirements:
+#   - Orient-Anything repo cloned to /home/ubuntu/Orient-Anything
+#   - Dependencies: pip install rembg transformers huggingface_hub torch
+#   - GPU recommended for inference
+#
+# To use: Set pose_estimation.backend = "orient_anything" in your config
+
+pose_estimation:
+  backend: "orient_anything"
+
+  # Model settings
+  # Set to null to use default HuggingFace model: Viglong/Orient-Anything
+  orient_anything_model_path: null
+
+  # Device for inference ("cuda" or "cpu")
+  orient_anything_device: "cuda"
+
+  # Preprocessing options
+  # - true: Remove background before orientation estimation (slower but more accurate)
+  # - false: Use original image crop (faster)
+  use_background_removal: false
+
+  # Test-time augmentation
+  # - true: Use multiple crops for robust estimation (slower but more accurate)
+  # - false: Single forward pass (faster)
+  use_inference_augmentation: false
+
+  # Quality thresholds
+  min_mask_pixels: 10
+  confidence_threshold: 0.5  # Orient-Anything provides confidence scores

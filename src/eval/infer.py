@@ -58,11 +58,12 @@ def prepare_test_messages(testset_path, skip_system_prompt=False):
 
 def init_model(model_path, gpu_id):
     """init a model(args.model_path) on a specific gpu"""
-    # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
+    # Use SDPA (Scaled Dot Product Attention) for efficient inference
+    # Falls back from flash_attention_2 which requires separate installation
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_path,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2",
+        attn_implementation="sdpa",
         device_map=f"cuda:{gpu_id}",
     )
 

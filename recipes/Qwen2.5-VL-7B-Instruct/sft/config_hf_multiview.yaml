@@ -1,0 +1,76 @@
+# HuggingFace Multi-View Training Configuration
+# =============================================
+# Training with HF augmented data in multi-view format
+# Uses p10 (+10°) and m10 (-10°) as two viewpoints
+# 1,194 multiview samples (paired from 2,400 HF data)
+#
+# Base: SFT-v2 checkpoint (58% accuracy)
+
+# Model arguments
+model_name_or_path: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-v2
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: sdpa
+
+# Data training arguments
+dataset_name: local
+dataset_train_split: train
+data_dir: /data/SpatialReasoner/data/openimages/
+num_processes: 4
+
+# MVGen/Multiview settings
+mvgen_enabled: true
+mvgen_data_dir: /data/SpatialReasoner/data/hf_multiview/
+mvgen_mode: multi  # multi = two views per sample
+view_selection: fixed_pair
+fixed_view_angles: [10.0, -10.0]
+
+# Multi-view specific settings
+multi_view_format: sequential
+primary_view_angle: 10.0
+secondary_view_angle: -10.0
+
+# CoT augmentation - already pre-transformed in dataset
+cot_augmentation_enabled: false  # CoTs are pre-transformed
+cot_include_angle: true
+cot_angle_precision: 1
+
+# SFT trainer config
+dataset_text_field: ""
+dataset_kwargs:
+  skip_prepare_dataset: true
+remove_unused_columns: false
+bf16: true
+gradient_accumulation_steps: 8
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+learning_rate: 2.0e-06
+lr_scheduler_type: cosine
+warmup_ratio: 0.15
+log_level: info
+logging_steps: 10
+logging_strategy: steps
+log_completions: true
+max_length: 3072  # Increased for multi-image
+min_pixels: 59716
+max_pixels: 100352  # Reduced per image
+max_steps: -1
+num_train_epochs: 3
+output_dir: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-HF-Multiview
+overwrite_output_dir: true
+per_device_train_batch_size: 1
+push_to_hub: false
+report_to:
+  - wandb
+save_strategy: steps
+save_steps: 200
+eval_strategy: "no"
+seed: 42
+
+# WandB settings
+wandb_project: spatial-reasoner-hf-multiview
+wandb_entity: null
+wandb_api_key: 2f4e627868f1f9dad10bcb1a14fbf96817e6baa9
+
+load_best_model_at_end: false

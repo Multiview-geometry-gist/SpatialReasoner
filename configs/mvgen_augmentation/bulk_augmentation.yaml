@@ -1,0 +1,44 @@
+# MVGen Bulk Augmentation Configuration
+# ======================================
+# Configuration for generating 50-100 views per image using MVGenMaster.
+#
+# This configuration controls:
+#   - Number of views to generate
+#   - Angular coverage (azimuth and elevation ranges)
+#   - MVGenMaster parameters
+#   - Output format and quality
+#
+# Usage:
+#   python -m src.data_generation.mvgen_bulk_augmentation \
+#     --config configs/mvgen_augmentation/bulk_augmentation.yaml \
+#     --input_dataset ccvl/SpatialReasonerTrain-SFT \
+#     --output_dir ./data/mvgen_augmented
+
+# MVGenMaster installation paths
+mvgenmaster_root: /home/ubuntu/MVGenMaster
+model_dir: /home/ubuntu/MVGenMaster/check_points/pretrained_model
+
+# View generation settings
+# Target 50 views per image - achievable with 2-3 trajectory runs
+num_views: 50  # Target number of views per image (50-100 recommended)
+azimuth_range: 60.0  # +/- degrees for horizontal rotation
+elevation_range: 15.0  # +/- degrees for vertical rotation
+
+# Trajectory settings
+# MVGenMaster generates frames along a camera trajectory
+num_trajectories: 3  # Number of different trajectory runs
+frames_per_trajectory: 28  # Frames per run (MVGenMaster default max)
+
+# MVGenMaster model parameters
+guidance_scale: 2.0  # CFG scale (higher = more guidance, less diversity)
+seed: 42  # Random seed for reproducibility
+camera_longest_side: 5.0  # Camera normalization scale
+
+# Processing settings
+timeout_per_batch: 600  # 10 minutes per trajectory
+max_workers: 1  # MVGenMaster is GPU-bound
+
+# Output settings
+save_video: false  # Save video of trajectory (for debugging)
+output_format: jpg  # jpg or png (jpg is smaller)
+output_quality: 95  # JPEG quality (1-100)

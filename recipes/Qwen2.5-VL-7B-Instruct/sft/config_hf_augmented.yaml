@@ -1,0 +1,67 @@
+# HuggingFace Augmented Data Training Configuration
+# =================================================
+# Training with HuggingFace augmented data (2,400 samples)
+# - daeyeeeeeon/SpatialReasonerTrain-RL-p10_ccw (1,200)
+# - daeyeeeeeon/SpatialReasonerTrain-RL-m10_cw (1,200)
+#
+# Data: Original images + Rotated CoT coordinates (+10°, -10°)
+# Base: SFT-v2 checkpoint (58% accuracy)
+
+# Model arguments
+model_name_or_path: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-v2
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: sdpa
+
+# Data training arguments
+# Load HuggingFace datasets directly (concatenated with +)
+dataset_name: daeyeeeeeon/SpatialReasonerTrain-RL-p10_ccw+daeyeeeeeon/SpatialReasonerTrain-RL-m10_cw
+dataset_train_split: train
+data_dir: /data/SpatialReasoner/data/openimages/  # Fallback for non-HF augmented datasets
+hf_augmented_data_dir: /data/SpatialReasoner/data/hf_augmented  # +10°/-10° rotated images
+num_processes: 4
+
+# CoT augmentation - transform using bounding_box/direction metadata
+augmented_cot_transform: true  # Transform CoT text using rotated metadata
+cot_augmentation_enabled: false  # Not using angle-based augmentation
+cot_include_angle: false
+
+# SFT trainer config
+dataset_text_field: ""
+dataset_kwargs:
+  skip_prepare_dataset: true
+remove_unused_columns: false
+bf16: true
+gradient_accumulation_steps: 8
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+learning_rate: 2.0e-06
+lr_scheduler_type: cosine
+warmup_ratio: 0.15
+log_level: info
+logging_steps: 10
+logging_strategy: steps
+log_completions: true
+max_length: 2048
+min_pixels: 59716
+max_pixels: 100352
+max_steps: -1
+num_train_epochs: 3
+output_dir: /data/SpatialReasoner/checkpoints/Qwen2.5-VL-7B-SFT-HF-Augmented
+overwrite_output_dir: true
+per_device_train_batch_size: 1
+push_to_hub: false
+report_to:
+  - wandb
+save_strategy: steps
+save_steps: 200
+eval_strategy: "no"
+seed: 42
+
+# WandB settings
+wandb_project: spatial-reasoner-hf-augmented
+wandb_entity: null
+wandb_api_key: 2f4e627868f1f9dad10bcb1a14fbf96817e6baa9
+
+load_best_model_at_end: false

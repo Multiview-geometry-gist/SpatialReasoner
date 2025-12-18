@@ -1,0 +1,43 @@
+# High-Quality View Synthesis Configuration
+# ==========================================
+#
+# Uses hybrid backend with aggressive fallback for maximum quality.
+# Recommended for final dataset generation when quality is paramount.
+#
+# Requirements:
+#   - GPU with 24GB+ VRAM (for ZeroNVS)
+#   - pip install diffusers transformers accelerate
+
+view_synthesis:
+  enabled: true
+  backend: "hybrid"
+
+  rotation_angles: [-5.0, 0.0, 5.0]
+  rotation_axis: "vertical"
+  max_hole_ratio: 0.15
+  device: "cuda"
+
+  # Start with depth warping, fall back to ZeroNVS for complex scenes
+  hybrid:
+    fallback_backends:
+      - "depth_warping"
+      - "zeronvs"
+
+    # Aggressive fallback threshold - use diffusion if any holes > 5%
+    fallback_hole_threshold: 0.05
+
+    # Require high quality
+    quality_threshold: 0.9
+
+    enable_fallback: true
+
+  # Optimized depth warping
+  depth_warping:
+    inpainting_method: "opencv"
+
+  # High-quality ZeroNVS settings
+  zeronvs:
+    model_name: "stabilityai/stable-zero123"
+    num_inference_steps: 75  # More steps for better quality
+    guidance_scale: 3.5
+    use_lite: false

@@ -137,3 +137,20 @@ class SFTConfig(trl.SFTConfig):
         default=1.0,
         metadata={"help": "Weight multiplier for rotation-based queries in loss."},
     )
+    # HF Augmented dataset settings
+    hf_augmented_data_dir: str = field(
+        default="/data/SpatialReasoner/data/hf_augmented",
+        metadata={"help": "Directory containing HF augmented images (+10°/-10° rotated views)."},
+    )
+    augmented_cot_transform: bool = field(
+        default=True,
+        metadata={"help": "Transform CoT coordinates using rotated bounding_box/direction metadata."},
+    )
+    use_enhanced_cot: bool = field(
+        default=False,
+        metadata={"help": "Use category-specific enhanced CoT templates instead of coordinate replacement."},
+    )
+    viewpoint_aware_prefix: bool = field(
+        default=False,
+        metadata={"help": "Add explicit viewpoint context prefix to CoT (e.g., '[From +10° viewpoint]')."},
+    )

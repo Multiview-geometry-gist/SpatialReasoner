@@ -1,0 +1,90 @@
+# View Synthesis Configuration
+# ============================
+#
+# This configuration supports multiple backends with quality-based fallback.
+#
+# Available backends:
+#   - depth_warping: Fast, CPU-friendly, uses depth-based warping
+#   - zeronvs: High-quality diffusion model for scene-level synthesis
+#   - zeronvs_lite: Memory-efficient version of ZeroNVS
+#   - zero123pp: Object-centric multi-view synthesis
+#   - hybrid: Quality-based fallback across multiple backends
+#   - adaptive: Self-optimizing backend selection
+
+view_synthesis:
+  # Enable/disable view synthesis
+  enabled: true
+
+  # Primary backend selection
+  # Options: "depth_warping", "zeronvs", "zero123pp", "hybrid", "adaptive"
+  backend: "depth_warping"
+
+  # Rotation angles to generate (degrees)
+  # Positive = clockwise rotation when viewed from above
+  rotation_angles: [-5.0, 0.0, 5.0]
+
+  # Rotation axis
+  # "vertical" = Y-axis rotation (left/right view change)
+  # "horizontal" = X-axis rotation (up/down view change)
+  rotation_axis: "vertical"
+
+  # Maximum acceptable hole ratio (0.0 - 1.0)
+  # Views with holes > this threshold are marked invalid
+  max_hole_ratio: 0.15
+
+  # Compute device
+  device: "cuda"
+
+  # ==========================================================================
+  # Backend-Specific Configurations
+  # ==========================================================================
+
+  # Depth Warping Settings
+  # Fast, no GPU required, but cannot hallucinate disoccluded regions
+  depth_warping:
+    # Inpainting method for holes
+    # "opencv" = OpenCV Telea algorithm (fast, texture-based)
+    # "none" = No inpainting (leave holes black)
+    inpainting_method: "opencv"
+
+    # Rotation axis (can override global setting)
+    rotation_axis: "vertical"
+
+  # ZeroNVS Settings
+  # High-quality diffusion-based synthesis, GPU required (~24GB VRAM)
+  zeronvs:
+    # HuggingFace model path
+    model_name: "stabilityai/stable-zero123"
+
+    # Number of diffusion steps (more = higher quality, slower)
+    num_inference_steps: 50
+
+    # Classifier-free guidance scale
+    guidance_scale: 3.0
+
+    # Use memory-efficient version (requires ~12GB instead of 24GB)
+    use_lite: false
+
+  # Zero123++ Settings
+  # Object-centric synthesis, generates 6 views at once
+  zero123:
+    model_name: "sudo-ai/zero123plus-v1.2"
+    num_inference_steps: 75
+
+  # Hybrid Fallback Settings
+  # Tries backends in order until quality threshold is met
+  hybrid:
+    # Order of backends to try (first = fastest/cheapest)
+    fallback_backends:
+      - "depth_warping"
+      - "zeronvs"
+
+    # Trigger fallback if hole ratio exceeds this threshold
+    fallback_hole_threshold: 0.10
+
+    # Minimum acceptable quality score (0.0 - 1.0)
+    quality_threshold: 0.8
+
+    # Enable/disable fallback mechanism
+    # If false, only uses the first backend
+    enable_fallback: true
