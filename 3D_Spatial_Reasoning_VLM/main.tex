@@ -39,6 +39,7 @@
 \usepackage{multirow}
 \usepackage{appendix}
 \usepackage{makecell}
+\usepackage{pifont}
 \usepackage{tcolorbox}
 \usepackage{tikz}
 \usepackage{pgfplots}
@@ -46,10 +47,11 @@
 
 % Define promptbox environment
 \newtcolorbox{promptbox}[1][]{
-    colback=gray!5!white,
-    colframe=gray!75!black,
-    fonttitle=\bfseries\small,
-    title=#1,
+    colback=black!5!white,
+    colframe=black!75!white,
+    fonttitle=\bfseries,
+    title={#1},
+    breakable,
     boxrule=0.5pt,
     arc=2pt,
     left=6pt,
